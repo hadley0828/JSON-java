@@ -76,7 +76,9 @@ public class XML {
     public static final String NULL_ATTR = "xsi:nil";
 
     public static final String TYPE_ATTR = "xsi:type";
-    private static int level;
+
+    public static Object queryResult;
+    public static boolean isFoundInPath;
 
     /**
      * Creates an iterator for navigating Code Points in a string instead of
@@ -558,8 +560,8 @@ public class XML {
                 || val.indexOf('E') > -1 || "-0".equals(val);
     }
 
-    // the method following TA's office hour, cannot work it out
-    private static boolean parse2(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config,JSONPointer jsonPointer)
+    // the method following TA's office hour
+    private static boolean parse2(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, List<String> pathList)
             throws JSONException {
         char c;
         int i;
@@ -724,7 +726,8 @@ public class XML {
 //                                System.out.println(context.query(jsonPointer));
 //                            }
 
-                            if (parse2(x, jsonObject, tagName, config,jsonPointer)) {
+
+                            if (parse2(x, jsonObject, tagName, config, pathList)) {
                                 if (jsonObject.length() == 0) {
                                     context.accumulate(tagName, "");
                                 } else if (jsonObject.length() == 1
@@ -733,6 +736,40 @@ public class XML {
                                 } else {
                                     context.accumulate(tagName, jsonObject);
                                 }
+
+                                //new added, SWE262P
+                                System.out.println(context);
+
+                                if(pathList.size() == 1){
+                                    String key = pathList.get(0);
+                                    System.out.println("******************************************");
+                                    System.out.println("the context's object query is " + context.opt(pathList.get(0)));
+                                    if(context.opt(pathList.get(0)) != null){
+                                        //it means we find the needed subObject
+                                        isFoundInPath = true;
+                                        queryResult = context.opt(pathList.get(0));
+                                        //TODO
+                                        //need to jump out of the iterator,cannot make it
+                                    }
+
+                                }else if(pathList.size() == 2){
+                                    String key = pathList.get(0);
+                                    int index = Integer.parseInt(pathList.get(1));
+                                    Object obj = context.opt(key);
+                                    if(obj != null && obj instanceof JSONArray){
+                                        System.out.println("******************************************");
+                                        System.out.println("the context's object query is " + ((JSONArray) obj).get(index));
+                                        if(((JSONArray) obj).get(index) != null){
+                                            //it means we find the needed subObject
+                                            isFoundInPath = true;
+                                            queryResult = ((JSONArray) obj).get(index);
+                                            //need to jump out of the iterator cannot make it
+
+                                        }
+                                    }
+
+                                }
+
                                 return false;
                             }
                         }
@@ -748,8 +785,10 @@ public class XML {
     which does, inside the library, the same thing that task 2 of milestone 1 did in client code, before writing to disk.
     Being this done inside the library, you should be able to do it more efficiently. Specifically, you shouldn't need
     to read the entire XML file, as you can stop parsing it as soon as you find the object in question.
+
+    change the JSONObject to Object, cuz it will be JSONArray or JSONObject
      */
-    public static JSONObject toJSONObject(Reader reader, JSONPointer path){
+    public static Object toJSONObject(Reader reader, JSONPointer path){
         //check the key in the parse method
         //x.skipPast
         //if path last is number, that query(/book/1)
@@ -760,49 +799,43 @@ public class XML {
 
         String[] uriFragments = path.toURIFragment().split("/");
         //for example the path = "/catalog/book"  pathList = {catalog,book}
-        List<String> pathList = new ArrayList<>();
-        int index = 0;
 
-        for(int i = 1; i < uriFragments.length; i++){
-            pathList.add(uriFragments[i]);
-        }
+
         //pathList is the path we need to use
+        //if the last one is number, put the last two into it
+        //if the last one is String, put the last one into it
+        List<String> pathList =  new ArrayList<>();
+
+        isFoundInPath = false;
+        queryResult = null;
 
         //this while loop is used to discard commend things
-        while(x.more()){
+        while (x.more()) {
             x.skipPast("<");
-            if(x.more()){
-                String token = x.nextToken().toString();
-                if(token.equals(pathList.get(index))){
-                    if(index == pathList.size() - 1){
-                        x.skipPast("<");
-                        parse(x,jo,null,XMLParserConfiguration.ORIGINAL);
-                        return jo;
-                    }
-                    index++;
-
-
+            if(x.more()) {
+                pathList = new ArrayList<>();
+                if(uriFragments.length == 1){
+                    parse(x,jo,null,XMLParserConfiguration.ORIGINAL);
                 }else{
-
+                    if(uriFragments.length == 2){
+                        pathList.add(uriFragments[1]);
+                        parse2(x, jo, null, XMLParserConfiguration.ORIGINAL,pathList);
+                    }else{
+                        String lastPath = uriFragments[uriFragments.length - 1];
+                        if(isStringNum(lastPath)) {
+                            pathList.add(uriFragments[uriFragments.length - 2]);
+                        }
+                        pathList.add(lastPath);
+                        parse2(x, jo, null, XMLParserConfiguration.ORIGINAL,pathList);
+                    }
                 }
-
-
             }
         }
-
-        System.out.println(XML.toJSONObject("<book id=\"bk101\">\n" +
-                "        <author>Gambardella, Matthew</author>\n" +
-                "        <title>XML Developer's Guide</title>\n" +
-                "        <genre>Computer</genre>\n" +
-                "        <price>44.95</price>\n" +
-                "        <publish_date>2000-10-01</publish_date>\n" +
-                "        <description>An in-depth look at creating applications\n" +
-                "            with XML.</description>\n" +
-                "    </book>"));
-
-//        System.out.println(obj);
-
-        return jo;
+        if(isFoundInPath){
+            return queryResult;
+        }else{
+            return null;
+        }
     }
 
     /*
