@@ -560,7 +560,7 @@ public class XML {
                 || val.indexOf('E') > -1 || "-0".equals(val);
     }
 
-    // the method following TA's office hour
+    // the method following TA's office hour for Milestone2
     private static boolean parse2(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, List<String> pathList)
             throws JSONException {
         char c;
@@ -890,6 +890,236 @@ public class XML {
         return true;
     }
 
+    /*
+    SWE 262P Milestone3
+    which does, inside the library, the kinds of things you did in task 4 of milestone 1,
+    but in a much more general manner, for any transformations of keys.
+    Specifically, YOURTYPEHERE should be a function (or "functional" in Java) that takes as input a String
+    denoting a key and returns another String that is the transformation of the key.
+    For example:
+        "foo" --> "swe262_foo"
+        "foo" --> "oof"
+     */
+
+    public static JSONObject toJSONObject(Reader reader, MyTransform function){
+
+        JSONObject jo = new JSONObject();
+        XMLTokener x = new XMLTokener(reader);
+        while (x.more()) {
+            x.skipPast("<");
+            if(x.more()) {
+                parse3(x, jo, null, XMLParserConfiguration.ORIGINAL,function);
+            }
+        }
+
+        return jo;
+
+    }
+
+
+
+    public interface MyTransform{
+        public String transform(String input);
+    }
+
+    /**
+     * Scan the content following the named tag, attaching it to the context.
+     * SWE 262P Milestone3
+     * For every Context.accumulate() and JSONObject.accumulate() transform the key of it
+     *
+     * @param x
+     *            The XMLTokener containing the source string.
+     * @param context
+     *            The JSONObject that will include the new material.
+     * @param name
+     *            The tag name.
+     * @return true if the close tag is processed.
+     * @throws JSONException
+     */
+    private static boolean parse3(XMLTokener x, JSONObject context, String name, XMLParserConfiguration config, MyTransform function)
+            throws JSONException {
+        char c;
+        int i;
+        JSONObject jsonObject = null;
+        String string;
+        String tagName;
+        Object token;
+        XMLXsiTypeConverter<?> xmlXsiTypeConverter;
+
+        // Test for and skip past these forms:
+        // <!-- ... -->
+        // <! ... >
+        // <![ ... ]]>
+        // <? ... ?>
+        // Report errors for these forms:
+        // <>
+        // <=
+        // <<
+
+        token = x.nextToken();
+
+        // <!
+
+        if (token == BANG) {
+            c = x.next();
+            if (c == '-') {
+                if (x.next() == '-') {
+                    x.skipPast("-->");
+                    return false;
+                }
+                x.back();
+            } else if (c == '[') {
+                token = x.nextToken();
+                if ("CDATA".equals(token)) {
+                    if (x.next() == '[') {
+                        string = x.nextCDATA();
+                        if (string.length() > 0) {
+                            context.accumulate(function.transform(config.getcDataTagName()), string);
+                        }
+                        return false;
+                    }
+                }
+                throw x.syntaxError("Expected 'CDATA['");
+            }
+            i = 1;
+            do {
+                token = x.nextMeta();
+                if (token == null) {
+                    throw x.syntaxError("Missing '>' after '<!'.");
+                } else if (token == LT) {
+                    i += 1;
+                } else if (token == GT) {
+                    i -= 1;
+                }
+            } while (i > 0);
+            return false;
+        } else if (token == QUEST) {
+
+            // <?
+            x.skipPast("?>");
+            return false;
+        } else if (token == SLASH) {
+
+            // Close tag </
+
+            token = x.nextToken();
+            if (name == null) {
+                throw x.syntaxError("Mismatched close tag " + token);
+            }
+            if (!token.equals(name)) {
+                throw x.syntaxError("Mismatched " + name + " and " + token);
+            }
+            if (x.nextToken() != GT) {
+                throw x.syntaxError("Misshaped close tag");
+            }
+            return true;
+
+        } else if (token instanceof Character) {
+            throw x.syntaxError("Misshaped tag");
+
+            // Open tag <
+
+        } else {
+            tagName = (String) token;
+
+            token = null;
+            jsonObject = new JSONObject();
+            boolean nilAttributeFound = false;
+            xmlXsiTypeConverter = null;
+            for (;;) {
+                if (token == null) {
+                    token = x.nextToken();
+                }
+                // attribute = value
+                if (token instanceof String) {
+                    string = (String) token;
+                    token = x.nextToken();
+                    if (token == EQ) {
+                        token = x.nextToken();
+                        if (!(token instanceof String)) {
+                            throw x.syntaxError("Missing value");
+                        }
+
+                        if (config.isConvertNilAttributeToNull()
+                                && NULL_ATTR.equals(string)
+                                && Boolean.parseBoolean((String) token)) {
+                            nilAttributeFound = true;
+                        } else if(config.getXsiTypeMap() != null && !config.getXsiTypeMap().isEmpty()
+                                && TYPE_ATTR.equals(string)) {
+                            xmlXsiTypeConverter = config.getXsiTypeMap().get(token);
+                        } else if (!nilAttributeFound) {
+                            jsonObject.accumulate(function.transform(string),
+                                    config.isKeepStrings()
+                                            ? ((String) token)
+                                            : stringToValue((String) token));
+                        }
+                        token = null;
+                    } else {
+                        jsonObject.accumulate(function.transform(string), "");
+                    }
+
+
+                } else if (token == SLASH) {
+                    // Empty tag <.../>
+                    if (x.nextToken() != GT) {
+                        throw x.syntaxError("Misshaped tag");
+                    }
+                    //new added
+                    if (nilAttributeFound) {
+                        context.accumulate(function.transform(tagName), JSONObject.NULL);
+                    } else if (jsonObject.length() > 0) {
+                        context.accumulate(function.transform(tagName), jsonObject);
+                    } else {
+                        context.accumulate(function.transform(tagName), "");
+                    }
+                    return false;
+
+                } else if (token == GT) {
+                    // Content, between <...> and </...>
+                    //SWE 262P if is content, don't change the key
+                    for (;;) {
+                        token = x.nextContent();
+                        if (token == null) {
+                            if (tagName != null) {
+                                throw x.syntaxError("Unclosed tag " + tagName);
+                            }
+                            return false;
+                        } else if (token instanceof String) {
+                            string = (String) token;
+                            if (string.length() > 0) {
+                                if(xmlXsiTypeConverter != null) {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            stringToValue(string, xmlXsiTypeConverter));
+                                } else {
+                                    jsonObject.accumulate(config.getcDataTagName(),
+                                            config.isKeepStrings() ? string : stringToValue(string));
+                                }
+                            }
+
+                        } else if (token == LT) {
+                            // Nested element
+                            if (parse3(x, jsonObject, tagName, config,function)) {
+                                if (jsonObject.length() == 0) {
+                                    context.accumulate(function.transform(tagName), "");
+                                } else if (jsonObject.length() == 1
+                                        && jsonObject.opt(config.getcDataTagName()) != null) {
+                                    context.accumulate(function.transform(tagName), jsonObject.opt(config.getcDataTagName()));
+                                } else {
+                                    context.accumulate(function.transform(tagName), jsonObject);
+                                }
+                                return false;
+                            }
+
+
+
+                        }
+                    }
+                } else {
+                    throw x.syntaxError("Misshaped tag");
+                }
+            }
+        }
+    }
 
 
 
