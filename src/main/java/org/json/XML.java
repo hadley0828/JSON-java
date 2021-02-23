@@ -916,8 +916,6 @@ public class XML {
 
     }
 
-
-
     public interface MyTransform{
         public String transform(String input);
     }

@@ -78,7 +78,6 @@ public class Util {
      * or something else.
      * @param value created by the code to be tested
      * @param expectedValue created specifically for comparing
-     * @param key key to the jsonObject entry to be compared
      */
     private static void compareActualVsExpectedObjects(Object value,
             Object expectedValue) {

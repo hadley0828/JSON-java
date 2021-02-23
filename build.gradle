@@ -32,7 +32,8 @@ subprojects {
 group = 'org.json'
 version = 'v20200429-SNAPSHOT'
 description = 'JSON in Java'
-sourceCompatibility = '1.7'
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 configurations.all {
 }

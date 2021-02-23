@@ -36,15 +36,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.Collection;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.ResourceBundle;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -101,6 +94,73 @@ import java.util.regex.Pattern;
  * @version 2016-08-15
  */
 public class JSONObject {
+
+
+    /*
+        SWE 262P Milestone 4
+         */
+    static List<LeafNode> resultList;
+
+    public List<LeafNode> toStream(){
+        resultList = new ArrayList<>();
+
+        if(this == null) return new ArrayList<LeafNode>();
+
+        recursiveJsonObjectForNode(this);
+
+        return resultList;
+    }
+
+    /*
+    SWE 262P Milestone 4
+    recursive the json object from top to down level
+    meanwhile create the node List
+     */
+    public static void recursiveJsonObjectForNode(Object obj){
+        // use partly code from : my.oschina.net/u/435726/blog/2980842
+        if(obj instanceof JSONArray){
+            JSONArray jsonArray = (JSONArray) obj;
+            if(jsonArray.length() > 0){
+                for(int i = 0; i < jsonArray.length(); i++){
+                    recursiveJsonObjectForNode(jsonArray.get(i));
+                }
+            }
+
+        }else if(obj instanceof JSONObject){
+            JSONObject jsonObject = (JSONObject) obj;
+            Set<String> allKey = jsonObject.keySet();
+            Iterator<String> iterator = allKey.iterator();
+
+            List<String> oldKeyList = new ArrayList<>();
+            List<Object> valueList = new ArrayList<>();
+
+            while(iterator.hasNext()){
+                String oneKey = iterator.next();
+//                System.out.println("the current key is " + oneKey);
+                Object oneValue = jsonObject.get(oneKey);
+
+
+                oldKeyList.add(oneKey);
+                valueList.add(oneValue);
+
+            }
+
+            for(int i = 0; i < valueList.size(); i++){
+                Object oneValue = valueList.get(i);
+                if(oneValue instanceof JSONArray){
+                    JSONArray lowLevelArr = (JSONArray) oneValue;
+                    recursiveJsonObjectForNode(lowLevelArr);
+                }else if(oneValue instanceof JSONObject){
+                    recursiveJsonObjectForNode(oneValue);
+                }else{
+                    resultList.add(new LeafNode(oldKeyList.get(i),oneValue.toString()));
+//                    System.out.println(newKeyList.get(i) + "<<===>>"+ oneValue.toString());
+                }
+            }
+
+        }
+    }
+
     /**
      * JSONObject.NULL is equivalent to the value that JavaScript calls null,
      * whilst Java's null is equivalent to the value that JavaScript calls
