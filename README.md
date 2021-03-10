@@ -7,6 +7,21 @@ JSON in Java [package org.json]
 
 # Overview
 
+The MileStone5 for UCI SWE 262P
+Open IntelliJ IDEA,
+Import the project and choose JSON-java,
+Import as Gradle project,
+
+This homework can be found in the test file whose name is Milestone5.java
+
+I use java future to do ASYNC things. And using  two thread to simultaneously parse the file is faster than just using main thread to do it.
+
+using two threads ASYNC in a List costs 1382 millisecond,
+using two threads one by one costs 1457 millisecond
+
+
+
+
 The MileStone project for UCI 262P
 the difference of time cost between outside and inside library implementation for Milestone1 task4
 outside: 12ms

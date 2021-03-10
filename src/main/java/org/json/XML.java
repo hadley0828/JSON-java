@@ -29,6 +29,7 @@ import java.io.StringReader;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -1118,6 +1119,39 @@ public class XML {
             }
         }
     }
+
+    /*
+    SWE 262P Milestone5
+    Java Future guidance: https://www.liaoxuefeng.com/wiki/1252599548343744/1306581155184674
+     */
+    public static Future<JSONObject> toJSONObjectForAsync(Reader reader) throws ExecutionException, InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        Callable<JSONObject> task = () ->{return toJSONObject(reader);};
+        Future<JSONObject> resultFuture = executorService.submit(task);
+        executorService.shutdown();
+        return resultFuture;
+    }
+
+    public static List<Future<JSONObject>> toJSONObjectForMultiReader(List<Reader> readerList) throws InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(readerList.size());
+
+        List<Future<JSONObject>> futureList = new ArrayList<>();
+
+        for(int i = 0; i < readerList.size(); i++){
+            Reader oneReader = readerList.get(i);
+            Callable<JSONObject> task = new Callable<JSONObject>() {
+                @Override
+                public JSONObject call() throws Exception {
+                    return toJSONObject(oneReader);
+                }
+            };
+            Future<JSONObject> future = executorService.submit(task);
+            futureList.add(future);
+        }
+
+        return futureList;
+    }
+
 
 
 
